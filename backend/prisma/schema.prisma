@@ -1,0 +1,88 @@
+// ATS Resume Management System - Database Schema
+// Default provider: sqlite. Switch to sqlserver for production (see README).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite" // change to "sqlserver" for SQL Server, update DATABASE_URL accordingly
+  url      = env("DATABASE_URL")
+}
+
+model Admin {
+  id           String   @id @default(uuid())
+  username     String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  adminId   String
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Recruiter {
+  id               String    @id @default(uuid())
+  name             String
+  email            String    @unique
+  department       String?
+  oneDriveFolderName String
+  folderPath       String
+  folderId         String?   // Microsoft Graph item id, cached after first sync
+  status           String    @default("Active") // Active | Inactive
+  createdDate      DateTime  @default(now())
+  lastUpload       DateTime?
+  lastSyncAt       DateTime?
+  syncStatus       String    @default("Never Synced") // Never Synced | Syncing | Synced | Failed
+  uploadCount      Int       @default(0)
+  resumes          Resume[]
+
+  @@index([status])
+}
+
+model Resume {
+  id               String   @id @default(uuid())
+  candidateName    String?
+  fileName         String
+  recruiterId      String
+  recruiter        Recruiter @relation(fields: [recruiterId], references: [id], onDelete: Cascade)
+  uploadDate       DateTime  @default(now())
+  fileSizeBytes    Int       @default(0)
+  pageCount        Int?
+  processingStatus String    @default("Pending") // Pending | Processing | Processed | Failed
+  createdDate      DateTime  @default(now())
+  modifiedDate     DateTime  @updatedAt
+  oneDriveItemId   String    @unique // Microsoft Graph drive item id - used for dedupe/delete tracking
+  oneDriveWebUrl   String?
+  downloadUrl      String?
+  contentHash      String?   // sha256 of file content, secondary dedupe signal
+  isDuplicate      Boolean   @default(false)
+  duplicateOfId    String?
+  deletedFromSource Boolean  @default(false)
+
+  @@index([recruiterId])
+  @@index([processingStatus])
+  @@index([oneDriveItemId])
+}
+
+model SyncLog {
+  id         String   @id @default(uuid())
+  type       String   // Sync | Error | Auth | Download | Duplicate
+  message    String
+  recruiterId String?
+  createdAt  DateTime @default(now())
+
+  @@index([type])
+  @@index([createdAt])
+}
+
+model AppSetting {
+  key   String @id
+  value String
+}
